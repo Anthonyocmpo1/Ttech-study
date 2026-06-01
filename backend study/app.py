@@ -6,7 +6,7 @@ from werkzeug.utils import secure_filename
 import os, hmac, hashlib, uuid
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 
 @app.after_request
 def after_request(response):
