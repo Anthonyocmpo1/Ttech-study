@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rootDirectory": "frontend study",
+  "env": {
+    "VITE_API_URL": "https://ttech-backend.onrender.com"
+  }
+}
