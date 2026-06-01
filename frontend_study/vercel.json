@@ -1,8 +1,7 @@
 {
   "buildCommand": "npm run build",
+  "installCommand": "npm install",
   "outputDirectory": "dist",
-  "framework": "vite",
-
   "env": {
     "VITE_API_URL": "https://ttech-backend.onrender.com"
   }
