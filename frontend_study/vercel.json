@@ -3,6 +3,6 @@
   "installCommand": "npm install",
   "outputDirectory": "dist",
   "env": {
-    "VITE_API_URL": "https://ttech-backend.onrender.com"
+    "VITE_API_URL": "https://ttech-study.onrender.com"
   }
 }
