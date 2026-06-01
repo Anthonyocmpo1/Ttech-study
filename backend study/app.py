@@ -6,7 +6,7 @@ from werkzeug.utils import secure_filename
 import os, hmac, hashlib, uuid
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:5173", os.getenv("FRONTEND_URL", "*")])
+CORS(app, origins="*")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 basedir = os.path.abspath(os.path.dirname(__file__))

@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || "";
+const BASE = "https://ttech-backend.onrender.com";
 
 export async function submitAssignment(data, file = null) {
   // Use FormData when a file is attached so the backend gets multipart/form-data
@@ -21,7 +21,7 @@ export async function submitAssignment(data, file = null) {
 }
 
 export function adminFileUrl(password, filename) {
-  const base = import.meta.env.VITE_API_URL || "";
+ const base = "https://ttech-backend.onrender.com";
   // Append password as query param so the browser can open/download the file directly
   return `${base}/api/admin/files/${encodeURIComponent(filename)}?pw=${encodeURIComponent(password)}`;
 }
