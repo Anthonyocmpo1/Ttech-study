@@ -8,12 +8,7 @@ import os, hmac, hashlib, uuid
 app = Flask(__name__)
 CORS(app)
 
-@app.after_request
-def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Admin-Password")
-    response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-    return response
+
 # ── Config ────────────────────────────────────────────────────────────────────
 basedir = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(basedir, "uploads")
