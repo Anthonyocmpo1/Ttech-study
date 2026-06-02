@@ -3,11 +3,10 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from werkzeug.utils import secure_filename
-import os, hmac, hashlib, uuid
+import os, hmac, uuid
 
 app = Flask(__name__)
 CORS(app)
-
 
 # ── Config ────────────────────────────────────────────────────────────────────
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -15,14 +14,12 @@ UPLOAD_FOLDER = os.path.join(basedir, "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "pdf"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL", f"sqlite:///{os.path.join(basedir, 'studymate.db')}"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-this-in-production")
-app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 db = SQLAlchemy(app)
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Ocmpo@12")
@@ -49,21 +46,12 @@ class Assignment(db.Model):
 
     def to_dict(self):
         return {
-            "id": self.id,
-            "ref": self.ref,
-            "name": self.name,
-            "phone": self.phone,
-            "campus": self.campus,
-            "subject": self.subject,
-            "question": self.question,
-            "urgency": self.urgency,
-            "budget": self.budget,
-            "file_name": self.file_name,
-            "file_path": self.file_path,
-            "file_type": self.file_type,
-            "has_file": bool(self.file_path),
-            "status": self.status,
-            "admin_reply": self.admin_reply,
+            "id": self.id, "ref": self.ref, "name": self.name,
+            "phone": self.phone, "campus": self.campus, "subject": self.subject,
+            "question": self.question, "urgency": self.urgency, "budget": self.budget,
+            "file_name": self.file_name, "file_path": self.file_path,
+            "file_type": self.file_type, "has_file": bool(self.file_path),
+            "status": self.status, "admin_reply": self.admin_reply,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -80,12 +68,9 @@ class Payment(db.Model):
 
     def to_dict(self):
         return {
-            "id": self.id,
-            "assignment_id": self.assignment_id,
-            "amount": self.amount,
-            "method": self.method,
-            "status": self.status,
-            "notes": self.notes,
+            "id": self.id, "assignment_id": self.assignment_id,
+            "amount": self.amount, "method": self.method,
+            "status": self.status, "notes": self.notes,
             "created_at": self.created_at.isoformat(),
         }
 
@@ -136,7 +121,7 @@ def submit_assignment():
     uploaded = request.files.get("file")
     if uploaded and uploaded.filename:
         if not allowed_file(uploaded.filename):
-            return jsonify({"error": "File type not allowed. Use JPG, PNG, PDF."}), 400
+            return jsonify({"error": "File type not allowed."}), 400
         ext = uploaded.filename.rsplit(".", 1)[1].lower()
         file_name = secure_filename(uploaded.filename)
         stored = f"{ref}_{uuid.uuid4().hex[:8]}.{ext}"
@@ -145,22 +130,19 @@ def submit_assignment():
         file_type = "pdf" if ext == "pdf" else "image"
 
     a = Assignment(
-        ref=ref,
-        name=data["name"].strip(),
-        phone=data["phone"].strip(),
-        campus=data.get("campus", ""),
-        subject=data["subject"].strip(),
-        question=data["question"].strip(),
-        urgency=data.get("urgency", ""),
-        budget=data.get("budget", ""),
-        file_name=file_name,
-        file_path=file_stored,
-        file_type=file_type,
+        ref=ref, name=data["name"].strip(), phone=data["phone"].strip(),
+        campus=data.get("campus", ""), subject=data["subject"].strip(),
+        question=data["question"].strip(), urgency=data.get("urgency", ""),
+        budget=data.get("budget", ""), file_name=file_name,
+        file_path=file_stored, file_type=file_type,
     )
     db.session.add(a)
     db.session.commit()
 
-    return jsonify({"ref": ref}), 201
+    wa_msg = (f"New assignment from {a.name}%0ASubject: {a.subject}%0A"
+              f"Urgency: {a.urgency}%0ABudget: {a.budget}%0ARef: {a.ref}")
+    wa_link = f"https://wa.me/{os.getenv('ADMIN_WA', '264814452481')}?text={wa_msg}"
+    return jsonify({"ref": ref, "wa_link": wa_link}), 201
 
 
 @app.route("/api/assignments/<ref>/status")
@@ -169,12 +151,55 @@ def get_status(ref):
     return jsonify({"ref": a.ref, "status": a.status, "reply": a.admin_reply})
 
 
-# ── Admin Routes (UNCHANGED) ────────────────────────────────────────────────
+# ── Admin: serve files ────────────────────────────────────────────────────────
+@app.route("/api/admin/files/<filename>")
+def serve_file(filename):
+    pw_header = request.headers.get("X-Admin-Password", "")
+    pw_query  = request.args.get("pw", "")
+    if not (hmac.compare_digest(pw_header, ADMIN_PASSWORD) or
+            hmac.compare_digest(pw_query, ADMIN_PASSWORD)):
+        return jsonify({"error": "Unauthorized"}), 401
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
+
+# ── Admin Routes ──────────────────────────────────────────────────────────────
+@app.route("/api/admin/login", methods=["POST"])
+def admin_login():
+    data = request.get_json()
+    if hmac.compare_digest(data.get("password", ""), ADMIN_PASSWORD):
+        return jsonify({"ok": True})
+    return jsonify({"error": "Wrong password"}), 401
+
+
 @app.route("/api/admin/assignments")
 @require_admin
 def admin_list():
-    items = Assignment.query.order_by(Assignment.created_at.desc()).all()
-    return jsonify({"assignments": [a.to_dict() for a in items]})
+    status = request.args.get("status")
+    q = Assignment.query.order_by(Assignment.created_at.desc())
+    if status:
+        q = q.filter_by(status=status)
+    items = q.all()
+    return jsonify({
+        "assignments": [a.to_dict() for a in items],
+        "stats": {
+            "total": Assignment.query.count(),
+            "new":   Assignment.query.filter_by(status="new").count(),
+            "done":  Assignment.query.filter_by(status="done").count(),
+            "paid":  Assignment.query.filter_by(status="paid").count(),
+        }
+    })
+
+
+@app.route("/api/admin/assignments/<int:aid>", methods=["PATCH"])
+@require_admin
+def admin_update(aid):
+    a = Assignment.query.get_or_404(aid)
+    data = request.get_json()
+    if "status"      in data: a.status      = data["status"]
+    if "admin_reply" in data: a.admin_reply = data["admin_reply"]
+    a.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify(a.to_dict())
 
 
 @app.route("/api/admin/payments", methods=["POST"])
@@ -182,33 +207,26 @@ def admin_list():
 def add_payment():
     data = request.get_json()
     p = Payment(
-        assignment_id=data["assignment_id"],
-        amount=data["amount"],
+        assignment_id=data["assignment_id"], amount=data["amount"],
         method=data.get("method", "MobileMoney"),
-        status=data.get("status", "confirmed"),
-        notes=data.get("notes", "")
+        status=data.get("status", "confirmed"), notes=data.get("notes", "")
     )
     db.session.add(p)
+    a = Assignment.query.get(data["assignment_id"])
+    if a: a.status = "paid"
     db.session.commit()
     return jsonify(p.to_dict()), 201
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ✅ ADDED: TUTORIAL REQUEST ENDPOINT (NEW FEATURE)
-# ─────────────────────────────────────────────────────────────────────────────
-@app.route("/api/tutorial-requests", methods=["POST"])
-def submit_tutorial_request():
-    data = request.get_json() or {}
-
-    # no database changes (safe simple endpoint)
-    return jsonify({
-        "ok": True,
-        "message": "Tutorial request received",
-        "data": data
-    }), 201
+@app.route("/api/admin/payments")
+@require_admin
+def list_payments():
+    payments = Payment.query.order_by(Payment.created_at.desc()).all()
+    total = db.session.query(db.func.sum(Payment.amount)).filter_by(status="confirmed").scalar() or 0
+    return jsonify({"payments": [p.to_dict() for p in payments], "total_revenue": total})
 
 
-# ── Init ─────────────────────────────────────────────────────────────────────
+# ── Init ──────────────────────────────────────────────────────────────────────
 with app.app_context():
     db.create_all()
 
