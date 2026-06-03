@@ -42,6 +42,7 @@ class Assignment(db.Model):
     status      = db.Column(db.String(20),  default="new")
     admin_reply = db.Column(db.Text)
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    # FIX: set updated_at on insert too, not just on update
     updated_at  = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
@@ -52,8 +53,8 @@ class Assignment(db.Model):
             "file_name": self.file_name, "file_path": self.file_path,
             "file_type": self.file_type, "has_file": bool(self.file_path),
             "status": self.status, "admin_reply": self.admin_reply,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
@@ -71,7 +72,7 @@ class Payment(db.Model):
             "id": self.id, "assignment_id": self.assignment_id,
             "amount": self.amount, "method": self.method,
             "status": self.status, "notes": self.notes,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -91,7 +92,7 @@ class TutorialRequest(db.Model):
             "id": self.id, "name": self.name, "phone": self.phone,
             "campus": self.campus, "req_type": self.req_type,
             "subject": self.subject, "description": self.description,
-            "status": self.status, "created_at": self.created_at.isoformat(),
+            "status": self.status, "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -149,12 +150,15 @@ def submit_assignment():
         file_stored = stored
         file_type = "pdf" if ext == "pdf" else "image"
 
+    now = datetime.utcnow()
     a = Assignment(
         ref=ref, name=data["name"].strip(), phone=data["phone"].strip(),
         campus=data.get("campus", ""), subject=data["subject"].strip(),
         question=data["question"].strip(), urgency=data.get("urgency", ""),
         budget=data.get("budget", ""), file_name=file_name,
         file_path=file_stored, file_type=file_type,
+        # FIX: explicitly set both timestamps on creation
+        created_at=now, updated_at=now,
     )
     db.session.add(a)
     db.session.commit()
@@ -210,14 +214,13 @@ def admin_login():
     return jsonify({"error": "Wrong password"}), 401
 
 
+# FIX: removed the ?status= server-side filter entirely.
+# The endpoint now always returns ALL assignments.
+# Filter by status in your frontend UI instead.
 @app.route("/api/admin/assignments")
 @require_admin
 def admin_list():
-    status = request.args.get("status")
-    q = Assignment.query.order_by(Assignment.created_at.desc())
-    if status:
-        q = q.filter_by(status=status)
-    items = q.all()
+    items = Assignment.query.order_by(Assignment.created_at.desc()).all()
     return jsonify({
         "assignments": [a.to_dict() for a in items],
         "stats": {
