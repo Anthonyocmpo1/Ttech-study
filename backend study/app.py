@@ -75,6 +75,26 @@ class Payment(db.Model):
         }
 
 
+class TutorialRequest(db.Model):
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(100), nullable=False)
+    phone       = db.Column(db.String(30),  nullable=False)
+    campus      = db.Column(db.String(50))
+    req_type    = db.Column(db.String(30))
+    subject     = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    status      = db.Column(db.String(20), default="new")
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id, "name": self.name, "phone": self.phone,
+            "campus": self.campus, "req_type": self.req_type,
+            "subject": self.subject, "description": self.description,
+            "status": self.status, "created_at": self.created_at.isoformat(),
+        }
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -151,6 +171,25 @@ def get_status(ref):
     return jsonify({"ref": a.ref, "status": a.status, "reply": a.admin_reply})
 
 
+@app.route("/api/tutorial-requests", methods=["POST"])
+def submit_tutorial_request():
+    data = request.get_json() or {}
+    for field in ["name", "phone", "subject"]:
+        if not data.get(field):
+            return jsonify({"error": f"'{field}' is required"}), 400
+    t = TutorialRequest(
+        name        = data["name"].strip(),
+        phone       = data["phone"].strip(),
+        campus      = data.get("campus", ""),
+        req_type    = data.get("req_type", "Tutorial"),
+        subject     = data["subject"].strip(),
+        description = data.get("description", ""),
+    )
+    db.session.add(t)
+    db.session.commit()
+    return jsonify({"ok": True, "id": t.id}), 201
+
+
 # ── Admin: serve files ────────────────────────────────────────────────────────
 @app.route("/api/admin/files/<filename>")
 def serve_file(filename):
@@ -224,6 +263,27 @@ def list_payments():
     payments = Payment.query.order_by(Payment.created_at.desc()).all()
     total = db.session.query(db.func.sum(Payment.amount)).filter_by(status="confirmed").scalar() or 0
     return jsonify({"payments": [p.to_dict() for p in payments], "total_revenue": total})
+
+
+@app.route("/api/admin/tutorial-requests")
+@require_admin
+def admin_tutorial_requests():
+    items = TutorialRequest.query.order_by(TutorialRequest.created_at.desc()).all()
+    return jsonify({
+        "requests": [t.to_dict() for t in items],
+        "total": TutorialRequest.query.count(),
+        "new": TutorialRequest.query.filter_by(status="new").count(),
+    })
+
+
+@app.route("/api/admin/tutorial-requests/<int:tid>", methods=["PATCH"])
+@require_admin
+def admin_update_tutorial(tid):
+    t = TutorialRequest.query.get_or_404(tid)
+    data = request.get_json()
+    if "status" in data: t.status = data["status"]
+    db.session.commit()
+    return jsonify(t.to_dict())
 
 
 # ── Init ──────────────────────────────────────────────────────────────────────
