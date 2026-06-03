@@ -22,7 +22,7 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-this-in-production")
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 db = SQLAlchemy(app)
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Ocmpo@12")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "Ocmpo")
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
