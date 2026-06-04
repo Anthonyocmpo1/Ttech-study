@@ -2,14 +2,23 @@ services:
   - type: web
     name: studymatena-api
     env: python
+    pythonVersion: "3.12"
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_PASSWORD
-        sync: false          # You set this manually in Render dashboard
+        sync: false
       - key: ADMIN_WA
         sync: false
       - key: FRONTEND_URL
         sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: studymatena-db
+          property: connectionString
+
+databases:
+  - name: studymatena-db
+    plan: free
